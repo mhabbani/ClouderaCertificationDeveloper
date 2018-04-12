@@ -1,0 +1,26 @@
+sqoop list-databases --connect jdbc:mysql://localhost --username root --password cloudera
+
+sqoop list-tables --connect jdbc:mysql://localhost/retail_db --username root --password cloudera
+
+sqoop eval --query "SELECT * FROM products LIMIT 5" --connect jdbc:mysql://localhost/retail_db --username root --password cloudera
+
+sqoop import --table products --warehouse-dir sqoop3 --fields-terminated-by "\t" --connect jdbc:mysql://localhost/retail_db --username root --password cloudera
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table orders --warehouse-dir sqoopinc3 --incremental lastmodified --check-column order_date --last-value "2018-03-10 01:25:26.0" --merge-key order_id
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table orders --warehouse-dir sqoopincappend --incremental append --check-column order_id --last-value 68889
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table orders --columns "order_id,order_date" --where "order_id > 60000" --warehouse-dir sqoopcols --fields-terminated-by "\t"
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --query 'select order_id from orders where $CONDITIONS AND order_id >2' --target-dir sqoopquery--split-by order_id
+
+sqoop import --table products --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --warehouse-dir Products --direct
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products --warehouse-dir Products/prueba2 --as-avrodatafile
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera--table products  --warehouse-dir Products/prueba1 --num-mappers 8
+
+sqoop export --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table prueba --export-dir sqoopincappend/orders/ --update-mode allowinsert
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table=orders --target-dir /user/cloudera/problema1/orders --as-avrodatafile --compress --compression-codec snappy
+
