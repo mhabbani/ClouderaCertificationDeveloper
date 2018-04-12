@@ -1,0 +1,11 @@
+
+
+sudo service flume-ng-agent <start | stop | restart>
+
+
+/usr/bin/flume-ng agent -c <config-dir> -f <config-file> -n <agent-name>
+
+/usr/bin/flume-ng agent -c /home/cloudera/entornoTrabajo -f /home/cloudera/entornoTrabajo/flume.conf -n agent1 -Dflume.root.logger=DEBUG,console -Dorg.apache.flume.log.printconfig=true -Dorg.apache.flume.log.rawdata=true
+
+telnet localhost 44444
+

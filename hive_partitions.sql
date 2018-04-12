@@ -28,5 +28,3 @@ INTO TABLE categories_part_2
 partition (actdate='2018-04-09',category_department_id1=0);
 
 
-
-
