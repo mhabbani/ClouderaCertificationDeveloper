@@ -21,6 +21,12 @@ DISTRIBUTE BY category_department_id;
 
 show partitions categories_part_2;
 
+alter table categories_part_2 add partition(actdate='2018-04-09',category_department_id1=0);
+
+LOAD DATA INPATH '/user/cloudera/loadData.txt'
+INTO TABLE categories_part_2
+partition (actdate='2018-04-09',category_department_id1=0);
+
 
 
 
