@@ -1,0 +1,25 @@
+
+sc.wholeTextFiles("hdfs:/user/cloudera/categories").map(_._2).flatMap(_.split("\n")).map(_.split("\t")(2)).filter(x => {x.contains("Women") || x.contains("Men")}).foreach(println(_))
+
+
+sc.wholeTextFiles("hdfs:/user/cloudera/categories").map(_._2).flatMap(_.split("\n")).map(_.split("\t")(2)).sortBy( x => x.toUpperCase, false).foreach(println(_))
+
+
+sc.wholeTextFiles("hdfs:/user/cloudera/categories").map(_._2).flatMap(_.split("\n")).map(_.split("\t")(2).toUpperCase).sample(true,0.1,Random.nextInt).sortBy( x => x.toUpperCase, false).foreach(println(_))
+
+
+val rdd1 = sc.wholeTextFiles("hdfs:/user/cloudera/categories").map(_._2).flatMap(_.split("\n")).map(_.split("\t")(2).toUpperCase).sample(true,0.2,Random.nextInt).sortBy( x => x.toUpperCase, false)
+
+val rdd2 = sc.wholeTextFiles("hdfs:/user/cloudera/categories").map(_._2).flatMap(_.split("\n")).map(_.split("\t")(2).toUpperCase).sample(true,0.2,Random.nextInt).sortBy( x => x.toUpperCase, false)
+
+rdd1.union(rdd2).sortBy(x => x, true).foreach(println(_))
+
+
+rdd1.zip(rdd2).sortBy(x => x._2, true).foreach(println(_))
+sc.parallelize(List(1,2,3,4,5,6,7,8,9)).mean
+sc.parallelize(List(1,2,3,4,5,6,7,8,9)).sum
+
+sc.wholeTextFiles("hdfs:/user/cloudera/categories").map(_._2).flatMap(_.split("\n")).keyBy(_.split("\t")(1)).foreach(println(_))
+
+
+
