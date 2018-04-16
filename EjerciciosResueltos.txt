@@ -1,0 +1,36 @@
+
+Ejercicio 1:
+-------------------------------------
+Utilizando Sqoop, importar la tabla de pedidos “orders” en el directorio de HDFS /user/cloudera/problema1/orders. El tipo de fichero debe de ser cargado como Avro y utilizar Snappy como método de compresión.
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/problema1/orders --as-avrodatafile --compress --compression-codec snappy
+
+
+Ejercicio 2:
+-------------------------------------
+Utilizando Sqoop, importar la tabla “order_items” en el directorio de HDFS /user/cloudera/problema1/order_items. El tipo de fichero debe de ser Avro y el tipo de compresión Snappy.
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root -password cloudera --table order_items --target-dir hdfs:/user/cloudera/problema1/order_items --as-avrodatafile --compress --compression-codec snappy
+
+Ejercicio 3
+-------------------------------------
+Utilizando Scala con Spark, cargar los datos de /user/cloudera/problema1/orders y /user/cloudera/problema1/order-items en DataFrames
+
+import sqlContext.implicits._
+import com.databricks.spark.avro._
+val orders = sqlContext.read.format("com.databricks.spark.avro").load("hdfs:/user/cloudera/problema1/orders")
+val order_items = sqlContext.read.format("com.databricks.spark.avro").load("hdfs:/user/cloudera/problema1/order_items")
++++++++++++++++++++++++++++++++
+val order_items = sqlContext.read.avro("hdfs:/user/cloudera/problema1/order_items")
+
+
+Ejercicio 4
+--------------------------------------
+
+orders.registerTempTable("orders")
+sqlContext.sql("select order_id,from_unixtime(order_date/1000,'YYYY-MM-dd') as order_d,order_customer_id,order_status from orders").show
+
+orders.select(from_unixtime(col("order_date")/1000,"YYYY-MM-dd")).show
+
+
+
