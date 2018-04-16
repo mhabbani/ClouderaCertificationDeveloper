@@ -22,4 +22,17 @@ sc.parallelize(List(1,2,3,4,5,6,7,8,9)).sum
 sc.wholeTextFiles("hdfs:/user/cloudera/categories").map(_._2).flatMap(_.split("\n")).keyBy(_.split("\t")(1)).foreach(println(_))
 
 
+sqlContext.read.table("categories").show()
+
+sqlContext.read.format("jdbc").option("url","jdbc:mysql://localhost/retail_db").option("dbtable","categories").option("user","root").option("password","cloudera").load()
+
+res6.dtypes.foreach(println)
+
+res6.select($"category_name").show()
+
+val upper: String => String = _.toUpperCase
+import org.apache.spark.sql.functions.udf
+val upperUDF = udf(upper)
+res6.withColumn("category_name",upperUDF('category_name)).show
+
 
