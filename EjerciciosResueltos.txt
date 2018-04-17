@@ -1,19 +1,19 @@
 
 Ejercicio 1:
--------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------
 Utilizando Sqoop, importar la tabla de pedidos “orders” en el directorio de HDFS /user/cloudera/problema1/orders. El tipo de fichero debe de ser cargado como Avro y utilizar Snappy como método de compresión.
 
 sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/problema1/orders --as-avrodatafile --compress --compression-codec snappy
 
 
 Ejercicio 2:
--------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------
 Utilizando Sqoop, importar la tabla “order_items” en el directorio de HDFS /user/cloudera/problema1/order_items. El tipo de fichero debe de ser Avro y el tipo de compresión Snappy.
 
 sqoop import --connect jdbc:mysql://localhost/retail_db --username root -password cloudera --table order_items --target-dir hdfs:/user/cloudera/problema1/order_items --as-avrodatafile --compress --compression-codec snappy
 
 Ejercicio 3
--------------------------------------
+------------------------------------------------------------------------------------------------------------------------------------------------
 Utilizando Scala con Spark, cargar los datos de /user/cloudera/problema1/orders y /user/cloudera/problema1/order-items en DataFrames
 
 import sqlContext.implicits._
@@ -24,13 +24,119 @@ val order_items = sqlContext.read.format("com.databricks.spark.avro").load("hdfs
 val order_items = sqlContext.read.avro("hdfs:/user/cloudera/problema1/order_items")
 
 
-Ejercicio 4
---------------------------------------
+Ejercicio 4 (Spark SQL)
+------------------------------------------------------------------------------------------------------------------------------------------------
 
 orders.registerTempTable("orders")
-sqlContext.sql("select order_id,from_unixtime(order_date/1000,'YYYY-MM-dd') as order_d,order_customer_id,order_status from orders").show
 
-orders.select(from_unixtime(col("order_date")/1000,"YYYY-MM-dd")).show
+val orders_process = sqlContext.sql("select order_id,to_date(from_unixtime(order_date/1000,'YYYY-MM-dd')) as order_d,order_customer_id,order_status from orders")
+
+order_items.registerTempTable("order_items")
+orders_process.registerTempTable("orders_process")
+
+sqlContext.sql("select * from orders_process order by order_d desc").show
+sqlContext.sql("select * from orders_process order by order_status asc").show
+
+Numero total de orders -->
+sqlContext.sql("select count(distinct order_id) from orders_process").show
+
+Cantidad total por estado -->
+val orders_join = sqlContext.sql("select * from orders_process op inner join order_items oi on op.order_id = oi.order_item_order_id")
+orders_join.registerTempTable("orders_join")
+sqlContext.sql("select order_status, sum(order_item_subtotal) as total_amount from orders_join group by order_status").show
+
+Catidad total por dia -->
+val tosave = sqlContext.sql("select order_d, sum(order_item_subtotal) as total_amount from orders_join group by order_d order by order_d")
+
+tosave.write.option("compression","gzip"),format("parquet").save("hdfs:/user/cloudera/problema1/result2a-gzip")
+
+sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
+tosave.write.format("parquet").save("hdfs:/user/cloudera/problema1/result2a-snappy")
+
+tosave.rdd.map(x => x(0) + "," + x(1)).saveAsTextFile("/user/cloudera/problema1/result2a-csv")
+
+
+
+Ejercicio 4 (API DataFrames)
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+val orders_process_df = orders.select(col("order_id"),to_date(from_unixtime(col("order_date")/1000,"YYYY-MM-dd")).as("order_d"),col("order_customer_id"),col("order_status"))
+
+
+orders_process_df.orderBy(desc("order_d")).show
+orders_process_df.orderBy(asc("order_status")).show
+orders_process_df.orderBy(asc("order_status"),desc("order_d")).show
+orders_process_df.select(countDistinct("order_id")).show
+
+val orders_join_df = orders_process_df.join(order_items, col("order_id")===col("order_item_order_id"))
+
+orders_join_df.groupBy("order_status").agg(sum("order_item_subtotal").as("total_amount")).show
+orders_join_df.groupBy("order_d").agg(sum("order_item_subtotal").as("total_amount")).orderBy(desc("order_d")).show
+
+tosave2.write.option("compression","gzip").format("parquet").save("/user/cloudera/problema1/result2b-gzip")
+
+Ejercicio 4 (RDDs)
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+case class ordersClass(orderId: Int, order_d: Long,order_customer_id :Int ,order_status: String)
+case class orderItem(order_item_id:Int, order_item_order_id:Int, order_item_product_id:Int, order_item_quantity:Int, order_item_subtotal:Float, order_item_product_price: Float)
+val ordersRDD = orders.rdd.map(row => ordersClass(row(0).asInstanceOf[Int],row(1).asInstanceOf[Long],row(2).asInstanceOf[Int],row(3).asInstanceOf[String]))
+
+val orderItemsRDD = order_items.rdd.map(row => orderItem(row(0).asInstanceOf[Int],row(1).asInstanceOf[Int],row(2).asInstanceOf[Int],row(3).asInstanceOf[Int],row(4).asInstanceOf[Float],row(5).asInstanceOf[Float]))
+
+ordersRDD.sortBy(order => order.order_d,false).take(20).foreach(println)
+ordersRDD.sortBy(order => order.order_status,true).take(20).foreach(println)
+ordersRDD.map(_.orderId).distinct().count()
+
+val pairOrdersRDD = ordersRDD.map(order => (order.orderId,order))
+val pairorderItemsRDD = orderItemsRDD.map(orderItem => (orderItem.order_item_order_id,orderItem))
+
+val pairOrdersRDDjoin = pairOrdersRDD.join(pairorderItemsRDD)
+
+pairOrdersRDDjoin.map{case (x,(ord,ordItem)) => (ord.order_status, ordItem.order_item_subtotal)}.reduceByKey(_+_).take(20).foreach(println)
+pairOrdersRDDjoin.map{case (x,(ord,ordItem)) => (ord.order_d, ordItem.order_item_subtotal)}.reduceByKey{case (x,y) => x+y}.take(20).foreach(println)
+
+pairOrdersRDDjoin.map{case (x,(ord,ordItem)) => ((ord.order_status,ord.order_d), ordItem.order_item_subtotal)}.reduceByKey(_+_).take(20).foreach(println)
+
+val initial = (x:Float) => (x,1)
+val mergeValue = (x: (Float,AnyVal), y:Float) => (x._1 + y, x._2.asInstanceOf[Int]  + 1)
+val mergeCombiners =  (x: (Float,AnyVal), y: (Float,AnyVal)) => (x._1 + y._1, x._2.asInstanceOf[Int] + y._2.asInstanceOf[Int])
+
+pairOrdersRDDjoin.map{case (x,(ord,ordItem)) => ((ord.order_status,ord.order_d), ordItem.order_item_subtotal)}.combineByKey(initial, mergeValue, mergeCombiners).take(20).foreach(println)
+
+tosave3.toDF().write.option("compression","gzip").format("parquet").save("/user/cloudera/problema1/result3b-gzip")
+
+
+
+Problema 8
+------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+parquet y snappy
+hdfs:/user/cloudera/problema1/result2a-snappy
+order_status: string, total_amount: double
+
+
+create database pruebas
+create table cargaSqoop(
+	order_status varchar(255) not null,
+	total_amount Long not null
+);
+
+sqoop-export --connect jdbc:mysql://localhost/pruebas --username root --password cloudera --table cargaSqoop --export-dir  hdfs:/user/cloudera/problema1/result2acsv
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
