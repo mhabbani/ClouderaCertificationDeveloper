@@ -1,0 +1,182 @@
+
+
+Ejercicio 1
+----------------------------------------------------------------------------------------------
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products --target-dir hdfs:/user/cloudera/products --fields-terminated-by "|"
+
+
+Ejercicio 2
+----------------------------------------------------------------------------------------------
+hdfs dfs -mkdir hdfs:/user/cloudera/problema2
+hdfs dfs -mv "hdfs:/user/cloudera/products" "hdfs:/user/cloudera/problema2"
+
+
+
+
+Ejercicio 3
+----------------------------------------------------------------------------------------------
+owner 111 
+group 110
+other 101
+
+hdfs dfs -chmod 765 "hdfs:/user/cloudera/problema2/products/*"
+
+
+
+
+
+Ejercicio 4 A
+----------------------------------------------------------------------------------------------
+
+:paste --> Para poner varias lineas en spark-shell
+
+import sqlContext.implicits._
+
+case class product(product_id: Int, product_category_id:Int, product_name:String, product_description:String, product_price:Float, product_image: String)
+
+def mapclass(l: Array[String]): product = {
+var p_id=0
+var p_category_id=0
+var p_price: Float=0
+if(l(0).equals("")){ p_id = -1 	}else{ p_id = l(0).toInt}
+if(l(1).equals("")){ p_category_id = -1 }else{ p_category_id = l(1).toInt}
+if(l(4).equals("")){ p_price = -1 }else{ p_price = l(4).toFloat}
+return product(p_id,p_category_id,l(2),l(3),p_price,l(5))
+}
+
+val productsDF = sc.textFile("hdfs:/user/cloudera/problema2/products/").map(_.split('|')).map(mapclass).toDF()
+
+productsDF.registerTempTable("productsDF")
+
+-----------Filtrar los datos y obtener solo los productos en los cuales el precio sea menor que 100 USD  ordenados por product_category_id
+
+val dfProdLowPrice = sqlContext.sql("select * from productsDF where product_price < 100 order by product_category_id")
+
+
+-----------Sobre el conjunto de datos filtrado, buscar el producto de mayor precio (product_price) sobre cada categoría (product_category_id)
+dfProdLowPrice.registerTempTable("dfProdLowPrice")
+
+sqlContext.sql("select product_category_id, max(product_price) as max  from dfProdLowPrice group by product_category_id order by product_category_id").show
+
+-----------Sobre el conjunto de datos filtrado, obtener el número total de productos para cada categoría
+
+sqlContext.sql("select product_category_id, count(product_id) as count from dfProdLowPrice group by product_category_id order by product_category_id ").show
+
+-----------Sobre el conjunto de datos filtrado, obtener la media del precio de los productos de cada categoría
+
+sqlContext.sql("select product_category_id,mean(product_price) as mean from dfProdLowPrice group by product_category_id order by product_category_id").show
+
+-----------Sobre el conjunto de datos filtrado, obtener los productos con menor precio de cada categoría
+
+val dfMinPrices = sqlContext.sql("select product_category_id,min(product_price)as price from dfProdLowPrice group by product_category_id")
+dfMinPrices.registerTempTable("dfMinPrices")
+
+sqlContext.sql("select product_name,product_price,p.product_category_id from productsDF p inner join dfMinPrices m on p.product_category_id = m.product_category_id and p.product_price = m.price").show
+
+
+
+Ejercicio 4 B
+----------------------------------------------------------------------------------------------
+
+ ---product_id: Int, product_category_id:Int, product_name:String, product_description:String, product_price:Float, product_image: String--
+ 
+
+-----------Filtrar los datos y obtener solo los productos en los cuales el precio sea menor que 100 USD  ordenados por product_category_id
+
+	productsDF.where('product_price < 100).orderBy('product_category_id).show
+
+-----------Sobre el conjunto de datos filtrado, buscar el producto de mayor precio (product_price) sobre cada categoría (product_category_id)
+
+	dfProdLowPrice.groupBy('product_category_id).agg(max('product_price)).orderBy('product_category_id).show
+
+-----------Sobre el conjunto de datos filtrado, obtener el número total de productos para cada categoría
+
+	dfProdLowPrice.groupBy('product_category_id).agg(count('product_id).alias("count")).orderBy('product_category_id).show
+
+-----------Sobre el conjunto de datos filtrado, obtener la media del precio de los productos de cada categoría
+
+	dfProdLowPrice.groupBy('product_category_id).agg(mean('product_price)).orderBy('product_category_id).show
+
+-----------Sobre el conjunto de datos filtrado, obtener los productos con menor precio de cada categoría
+
+	val minPriceDF = dfProdLowPrice.groupBy('product_category_id).agg(min('product_price).alias("min_price"))
+	
+	dfProdLowPrice.join(minPriceDF, dfProdLowPrice("product_price") === minPriceDF("min_price") && dfProdLowPrice("product_category_id") === minPriceDF("product_category_id")).show
+
+
+	Ejercicio 4 c
+----------------------------------------------------------------------------------------------
+
+ ---product_id: Int, product_category_id:Int, product_name:String, product_description:String, product_price:Float, product_image: String--
+ 
+	val productsRDD = sc.textFile("hdfs:/user/cloudera/problema2/products/").map(_.split('|')).map(mapclass)
+
+-----------Filtrar los datos y obtener solo los productos en los cuales el precio sea menor que 100 USD  ordenados por product_category_id
+
+	val productsRDDFilt = productsRDD.filter(_.product_price < 100)
+	productsRDDFilt.persist
+
+-----------Sobre el conjunto de datos filtrado, buscar el producto de mayor precio (product_price) sobre cada categoría (product_category_id)
+
+	productsRDDFilt.map( row => (row.product_category_id,row.product_price)).reduceByKey(math.max).takeOrdered(10).foreach(println)
+
+-----------Sobre el conjunto de datos filtrado, obtener el número total de productos para cada categoría
+
+	productsRDDFilt.map( row => (row.product_category_id, (row.product_id,1))).reduceByKey{case ((a,b),(c,d)) => (a, b + d)}.map{ case (x,(y, z)) => (x,z)}.takeOrdered(10).foreach(println)
+	
+	
+-----------Sobre el conjunto de datos filtrado, obtener la media del precio de los productos de cada categoría
+
+	productsRDDFilt.map( row => (row.product_category_id,(row.product_price, 1))).reduceByKey{case ((a1,b1),(a2,b2)) => (a1+a2,b1+b2)}.map{case (x,(y, z)) => (x, y/z)}.takeOrdered(10).foreach(println)
+
+-----------Sobre el conjunto de datos filtrado, obtener los productos con menor precio de cada categoría
+
+	val rddminPrice = productsRDDFilt.map( row => (row.product_category_id,row.product_price)).reduceByKey(math.min).map( r => (r,1))
+	val rddProdCatPrice = productsRDDFilt.map( row => ((row.product_category_id,row.product_price),row.product_name))
+	
+	rddminPrice.join(rddProdCatPrice).mapValues{case ((a,b),(x,y)) => (a,b,y) }.toDF().write.format("avro")
+	
+	
+	
+-------------------------------------------------------------------------------------------------------------------------------------------
+
+import com.databricks.spark.avro._
+
+sqlContext.setConf("spark.sql.avro.compression.codec","snappy")
+productsDF.write.avro("hdfs:/user/cloudera/problema2/AVRO_SNAPPY")
+
+sqlContext.setConf("spark.sql.avro.compression.codec", "uncompressed")
+productsDF.write.avro("hdfs:/user/cloudera/problema2/AVRO_uncompressed")
+
+sqlContext.setConf("spark.sql.avro.compression.codec", "deflate")
+productsDF.write.avro("hdfs:/user/cloudera/problema2/AVRO_deflate")
+
+
+
+sqlContext.setConf("spark.sql.parquet.compression.codec", "uncompressed")
+productsDF.write.parquet("hdfs:/user/cloudera/problema2/PARQUET_uncompressed")
+
+sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
+productsDF.write.parquet("hdfs:/user/cloudera/problema2/PARQUET_snappy")
+
+sqlContext.setConf("spark.sql.parquet.compression.codec", "gzip")
+productsDF.write.parquet("hdfs:/user/cloudera/problema2/PARQUET_gzip")
+
+
+productsDF.write.orc("hdfs:/user/cloudera/problema2/ORC")
+
+
+
+
+
+productsDF
+	
+	
+	
+	
+
+	
+	
+
+
