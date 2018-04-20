@@ -1,0 +1,31 @@
+Ejercicio 7 ITversiti
+
+
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/problem7/prework --as-avrodatafile -m 1 
+
+mkdir /home/cloudera/problem7/flume-avro
+hdfs dfs -copyToLocal hdfs:/user/cloudera/problem7/prework/part-m-00000.avro /home/cloudera/problem7/flume-avro
+
+
+agent1.sources = avroSource
+agent1.sinks = sink1
+agent1.channels = jdbcChannel
+
+agent1.channels.jdbcChannel.type = jdbc
+
+agent1.sources.avroSource.type = avro
+agent1.sources.avroSource.bind = localhost
+agent1.sources.avroSource.port = 11112
+agent1.sources.avroSource.channels = jdbcChannel
+
+
+agent1.sinks.sink1.type = hdfs
+agent1.sinks.sink1.hdfs.path = /user/cloudera/problem7/sink
+agent1.sinks.sink1.channel = jdbcChannel
+
+
+
+flume-ng agent --conf /home/cloudera/problem7 --conf-file /home/cloudera/problem7/flume.config --name agent1 -Dflume.root.logger=INFO,console
+
+flume-ng avro-client -H localhost -p 11112 -F /home/cloudera/problem7/flume-avro/part-m-00000.avro

@@ -1,0 +1,92 @@
+
+
+
+sqoop import-all-tables --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --warehouse-dir hdfs:/user/hive/warehouse/retail_stage.db --as-avrodatafile --compress --compression-codec snappy
+
+hdfs dfs -copyToLocal hdfs:/user/hive/warehouse/retail_stage.db/orders/part-m-00000.avro part-m-00000.avro
+
+avro-tools getschema part-m-00000.avro > orders.avsc
+** Existe un parquet-tools
+
+
+hdfs dfs -copyFromLocal orders.avsc hdfs:/user/hive/schemas/order/orders.avsc
+
+CREATE EXTERNAL TABLE orders_sqoop STORED AS AVRO LOCATION "hdfs:/user/hive/warehouse/retail_stage.db/orders" TBLPROPERTIES('avro.schema.url'='hdfs:/user/hive/schemas/order/table.sch');
+
+
+----------Escribir una query en Hive que muestre todos los pedidos (orders) que pertenezcan a un cierto día
+
+select from_unixtime(CAST(order_date / 1000 as BIGINT)) from orders_sqoop limit 20
+
+select to_date(from_unixtime(CAST(order_date / 1000 as BIGINT))) as date, order_status from orders_sqoop where to_date(from_unixtime(CAST(order_date / 1000 as BIGINT))) = '2013-07-25'
+
++--------------------+------------+----------+--+
+|      col_name      | data_type  | comment  |
++--------------------+------------+----------+--+
+| order_id           | int        |          |
+| order_date         | bigint     |          |
+| order_customer_id  | int        |          |
+| order_status       | string     |          |
++--------------------+------------+----------+--+
+
+----------Escribir una query que muestre todos los pedidos del dia que mas pedidos se han realizado
+
+
+create TEMPORARY table paso1a as select count(order_id) as count, order_date from orders_sqoop group by order_date order by count desc limit 1;
+
+select * from orders_sqoop b where b.order_date in (select a.order_date from paso1a a)
+
+----------Realizar la misma query que en el ejemplo anterior utilizando Impala
+INVALIDATE METADATA;
+
+Queries iguales
+
+
+----------Crear la tabla retail.orders_avro en Hive almacenada como Avro, la tabla debería tener la misma definición que order_sqoop. Además, esta tabla debería particionarse por el mes y año del pedido. Ejemplo year-order_month (2014-01)
+
+CREATE DATABASE retail;
+USE retail;
+
+CREATE TABLE orders_avro(order_id INT,order_date DATE,order_customer_id INT,order_status STRING) PARTITIONED BY (order_month STRING) STORED AS AVRO; 
+
+----------Cargar la tabla que acabamos de crear en el problema anterior con los datos que existen en la tabla orders_sqoop.
+set hive.exec.dynamic.partition.mode=nonstrict;
+
+INSERT INTO TABLE orders_avro PARTITION(order_month) select order_id, to_date(from_unixtime(cast(order_date / 1000 as bigint))) as order_date,order_customer_id,order_status, SUBSTR(to_date(from_unixtime(cast(order_date/1000 as bigint))),1,7) as order_month from default.orders_sqoop;
+
+
++--------------------------+-----------------------+-----------------------+--+
+|         col_name         |       data_type       |        comment        |
++--------------------------+-----------------------+-----------------------+--+
+| order_id                 | int                   |                       |
+| order_date               | date                  |                       |
+| order_customer_id        | int                   |                       |
+| order_status             | string                |                       |
+| order_month              | string                |                       |
+|                          | NULL                  | NULL                  |
+| # Partition Information  | NULL                  | NULL                  |
+| # col_name               | data_type             | comment               |
+|                          | NULL                  | NULL                  |
+| order_month              | string                |                       |
+
+
+
+---------------Escribir una query que muestre todos los pedidos que pertenezcan a un cierto día. Este día es cuando más pedidos se han realizado. Obtener los datos de la tabla orders_avro.
+
+select * from orders_avro p where p.order_date in (select s.order_date as count from orders_avro s group by order_date order by count desc limit 1);
+
+-----------------Evolucionar el esquema avro de la tabla orders_sqoop añadiendo dos campos más:
+order_style String
+order_zone Integer
+
+
+ALTER TABLE default.orders_sqoop UNSET TBLPROPERTIES('avro.schema.url');
+ALTER TABLE default.orders_sqoop ADD COLUMNS (order_style string, order_zone int);
+
+
+
+
+
+
+
+
