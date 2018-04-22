@@ -1,0 +1,72 @@
+Pruebas sqoop
+--------------------
+
+sqoop list-databases --connect jdbc:mysql://quickstart.cloudera:3306 --username root --password cloudera 
+
+
+
+Importar una tabla a HDFS y exportarla a otra con el mismo nombre y estructura
+sqoop import --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/Pruabespropias/orders
+
+CREATE TABLE `orders1` (
+  `order_id` int(11) NOT NULL AUTO_INCREMENT,
+  `order_date` datetime NOT NULL,
+  `order_customer_id` int(11) NOT NULL,
+  `order_status` varchar(45) NOT NULL,
+  PRIMARY KEY (`order_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=68909 DEFAULT CHARSET=utf8
+
+sqoop export --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders1 --export-dir hdfs:/user/cloudera/Pruabespropias/orders
+
+Importar todas las tablas a HDFS y exportar una con los nombre de las columnas cambiadas
+
+sqoop import-all-tables --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --warehouse-dir /user/cloudera/Pruabespropias/all --fields-terminated-by '\t'
+
+CREATE TABLE `orders2` (
+  `order_id1` int(11) NOT NULL AUTO_INCREMENT,
+  `order_date1` datetime NOT NULL,
+  `order_customer_id1` int(11) NOT NULL,
+  `order_status1` varchar(45) NOT NULL,
+  PRIMARY KEY (`order_id1`)
+) ENGINE=InnoDB AUTO_INCREMENT=68909 DEFAULT CHARSET=utf8
+
+sqoop export --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders2 --export-dir hdfs:/user/cloudera/Pruabespropias/all/orders --fields-terminated-by '\t' --columns order_id1,order_date1,order_customer_id1,order_status1 
+
+
+Importar solo parte de los registros y columnas y exportarlo a la misma tabla
+
+sqoop import --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/Pruabespropias/orders3 --where "order_customer_id < 1000" --columns order_id,order_date
+
+CREATE TABLE `orders3` (
+  `order_id1` int(11) NOT NULL AUTO_INCREMENT,
+  `order_date1` datetime NOT NULL,
+  PRIMARY KEY (`order_id1`)
+) ENGINE=InnoDB AUTO_INCREMENT=68909 DEFAULT CHARSET=utf8
+
+sqoop export --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders3 --export-dir hdfs:/user/cloudera/Pruabespropias/orders3 --columns order_id1,order_date1
+
+Realizar cargas incrementales
+sqoop import --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/Pruabespropias/orders4 --where "order_id < 100" --incremental append --check-column order_id
+
+sqoop import --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/Pruabespropias/orders4 --where "order_id > 100" --incremental append --check-column order_id --last-value 99
+
+ 
+Importar y exportar con diferentes formatos de ficheros
+
+sqoop import --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/Pruabespropias/orders5 --where "order_id > 100" --as-avrodatafile --compress --compression-codec snappy
+
+CREATE TABLE `orders4` (
+  `order_id` int(11) NOT NULL AUTO_INCREMENT,
+  `order_date` datetime NOT NULL,
+  `order_customer_id` int(11) NOT NULL,
+  `order_status` varchar(45) NOT NULL,
+  PRIMARY KEY (`order_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=68909 DEFAULT CHARSET=utf8
+
+sqoop export --connect jdbc:mysql://quickstart.cloudera:3306/retail_db --username root --password cloudera --table orders4 --export-dir hdfs:/user/cloudera/Pruabespropias/orders5
+
+
+
+
+
+
