@@ -1,0 +1,31 @@
+ProblemasITversity1
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table orders --target-dir hdfs:/user/cloudera/problem1/orders --as-avrodatafile --compress --compression-codec snappy
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table order_items --target-dir hdfs:/user/cloudera/problem1/order_items --as-avrodatafile --compress --compression-codec snappy
+
+
+import com.databricks.spark.avro._
+import org.apache.spark.sql.functions._;
+val orders = sqlContext.read.avro("hdfs:/user/cloudera/problem1/orders")
+val order_items = sqlContext.read.avro("hdfs:/user/cloudera/problem1/order_items")
+val orders_join  = orders.join(order_items, 'order_id === 'order_item_order_id)
+
+
+
+val dfAggregated = orders_join.select('order_id,from_unixtime('order_date/1000,"yyyy-MM-dd").alias("order_date"),'order_customer_id,'order_status, 'order_item_subtotal).groupBy('order_date, 'order_status).agg(round(sum("order_item_subtotal"),2).alias("sum_order_items"), countDistinct("order_id").alias("total_orders"))
+
+
+val dfFinal = dfAggregated.orderBy(desc("order_date"),asc("order_status"), desc("sum_order_items"), asc("total_orders"))
+
+sqlContext.setConf("spark.sql.parquet.compression.codec", "gzip")
+dfFinal.write.parquet(" /user/cloudera/problem1/problema1.gzip")
+
+sqlContext.setConf("spark.sql.parquet.compression.codec", "snappy")
+dfFinal.write.parquet("/user/cloudera/problem1/problema1.snappy")
+
+dfFinal.map(x=> x(0) + "," + x(1) + "," + x(2) + "," + x(3)).saveAsTextFile("/user/cloudera/problem1/result4a-csv")
+
+
+
+

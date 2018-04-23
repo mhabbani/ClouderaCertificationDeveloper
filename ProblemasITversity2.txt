@@ -1,0 +1,17 @@
+Problemas2 ItVersity
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products --target-dir hdfs:/user/cloudera/products --fields-terminated-by '|'
+
+hdfs dfs -mv /user/cloudera/products /user/cloudera/problem2/
+
+
+import org.apache.spark.sql.functions._
+
+val dfProducts = sc.textFile("/user/cloudera/problem2/products/").map(x => {var y = x.split('|'); product(y(0).toInt,y(1).toInt,y(2).toString,y(3).toString,y(4).toFloat,y(5).toString)}).toDF()
+val dfProductsF = dfProducts.where('product_price < 100)
+val dfFinal = dfProductsF.groupBy('product_category_id).agg(max('product_price).alias("max"),countDistinct('product_id).alias("count"), avg('product_price).alias("average"), min('product_price).alias("min"))
+
+import com.databricks.spark.avro._
+sqlContext.setConf("spark.sql.avro.compression.codec","snappy")
+
+ dfFinal.write.avro("/user/cloudera/problem2/products/result-df")
