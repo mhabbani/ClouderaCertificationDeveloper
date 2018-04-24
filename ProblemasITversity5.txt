@@ -1,0 +1,36 @@
+
+Using sqoop, import products_replica table from MYSQL into hdfs such that fields are separated by a ‘|’ and lines are separated by ‘\n’. Null values are represented as -1 for numbers and “NOT-AVAILABLE” for strings. Only records with product id greater than or equal to 1 and less than or equal to 1000 should be imported and use 3 mappers for importing. The destination file should be stored as a text file to directory  /user/`whoami`/problem5/products-text.
+
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --target-dir /user/cloudera/problem5/products-text --fields-terminated-by '|' --input-null-string "NOT-AVAILABLE"  --input-null-non-string -1 --where "product_id >= 1 and product_id <= 1000" -m 3
+
+
+
+Using sqoop, import products_replica table from MYSQL into hdfs such that fields are separated by a ‘*’ and lines are separated by ‘\n’. Null values are represented as -1000 for numbers and “NA” for strings. Only records with product id less than or equal to 1111 should be imported and use 2 mappers for importing. The destination file should be stored as a text file to directory  /user/`whoami`/problem5/products-text-part1.
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --target-dir /user/cloudera/problem5/products-text-part1 --fields-terminated-by '*' --input-null-string "NA"  --input-null-non-string -1000 --where "product_id <= 1111" -m 2
+
+Using sqoop, import products_replica table from MYSQL into hdfs such that fields are separated by a ‘*’ and lines are separated by ‘\n’. Null values are represented as -1000 for numbers and “NA” for strings. Only records with product id greater than 1111 should be imported and use 5 mappers for importing. The destination file should be stored as a text file to directory  /user/`whoami`/problem5/products-text-part2.
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --target-dir /user/cloudera/problem5/products-text-part2 --fields-terminated-by '*' --input-null-string "NA"  --input-null-non-string -1000 --where "product_id > 1111" -m 5
+
+
+
+
+create a sqoop job Import Products_replica table as text file to directory /user/`whoami`/problem5/products-incremental. Import all the records.
+insert three more records to Products_replica from mysql
+run the sqoop job again so that only newly added records can be pulled from mysql
+insert 2 more records to Products_replica from mysql
+run the sqoop job again so that only newly added records can be pulled from mysql
+Validate to make sure the records have not be duplicated in HDFS
+
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --target-dir /user/cloudera/problem5/products-incremental --incremental append --check-column product_id 
+
+sqoop import --connect jdbc:mysql://localhost/retail_db --username root --password cloudera --table products_replica --target-dir /user/cloudera/problem5/products-incremental --incremental append --check-column product_id --last-value 1345
+
+
+
+
+
+

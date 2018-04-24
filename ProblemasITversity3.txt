@@ -1,0 +1,65 @@
+
+
+sqoop import-all-tables --connect jdbc:mysql://localhost/retail_db --username root -password cloudera --warehouse-dir /user/cloudera/problem3/retail_stage.db --as-avrodatafile --compress --compression-codec snappy
+
+sacar el esquema con avro tools
+avro-tools getschema "fichero" > avro_orders.avsc
+
+
+create external table orders_sqoop 
+stored as avro 
+location '/user/cloudera/problem3/retail_stage.db/orders' 
+tblproperties('avro.schema.url'='/user/cloudera/problem3/retail_stage.db/orders.avsc');
+
+create external table orders_sqoop
+STORED AS AVRO
+LOCATION '/user/hive/warehouse/retail_stage.db/orders'
+TBLPROPERTIES ('avro.schema.url'='/user/hive/schemas/order/orders.avsc')
+
+
+Write query in hive that shows all orders belonging to a certain day. This day is when the most orders were placed. select data from orders_sqoop
+
++-----------+-------------+--------------------+------------------+--+
+| order_id  | order_date  | order_customer_id  |   order_status   |
++-----------+-------------+--------------------+------------------+--+
+| 1         | 2013-07-25  | 11599              | CLOSED           |
+| 2         | 2013-07-25  | 256                | PENDING_PAYMENT  |
+
+
+create table orders_sqoop_temp1 as
+select count(order_id) as count,to_date(from_unixtime(cast(order_date/1000 as bigint))) as order_date
+from orders_sqoop
+group by order_date
+order by count desc
+limit 1;
+
+create table orders_sqoop_temp2 as 
+select order_id,to_date(from_unixtime(cast(order_date/1000 as bigint))) as order_date1, order_customer_id, order_status   
+from orders_sqoop;
+
+
+select * from orders_sqoop_temp2 os 
+where os.order_date1 in (
+select os1.order_date 
+from orders_sqoop_temp1 os1);
+
+-------------Impala
+invalidate metadata
+
+use retail_db;
+CREATE TABLE orders_avro( order_id INT, order_date BIGINT , order_customer_id INT, order_status STRING)
+PARTITIONED BY (order_month String)
+STORED AS AVRO;
+
+insert into orders_avro partition(order_month)
+select order_id, order_date, order_customer_id, order_status, substring(from_unixtime(cast(order_date/1000 as bigint)),0,7) as order_month
+from orders_sqoop;
+
+insert into orders_sqoop(order_id, order_date,  order_customer_id, order_status, order_style, order_zone ) values (1,111111111,12,"AAA","BBBB", 10);
+
+
+
+
+
+
+
