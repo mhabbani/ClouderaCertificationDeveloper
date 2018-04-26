@@ -1,0 +1,24 @@
+
+Importante a recordar
+-----------------------------------------------
+
+----imports spark
+import sqlContext.implicits._
+import org.apache.spark.sql.functions._
+import com.databricks.spark.avro._
+
+
+spark.sql.avro.compression.codec
+spark.sql.parquet.compression.codec
+
+org.apache.hadoop.io.compress
+
+
+
+set hive.exec.dynamic.partition.mode=nonstrict
+
+avro.schema.url
+
+to_date(from_unixtime('order_date/1000,"yyyy-MM-dd"))
+select to_date(from_unixtime(CAST(order_date / 1000 as BIGINT))) as date
+
